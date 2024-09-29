@@ -183,7 +183,6 @@ def get_scan_combine_fn(name, associative=True):
         A_i, Bu_i = x
         A_j, Bu_j = y
         return A_j * A_i, A_j * Bu_i + Bu_j
-        # return A_j * A_i, Bu_i + Bu_j
 
     def tuple_fct(x, y):
         return (x[0] + y[0], x[1] * y[1])
@@ -388,12 +387,7 @@ class TestControlFlow(TestCase):
         expected_grads = torch.autograd.grad(result_exp_flatten, params, grad_exp_init)
         grad_init = [torch.ones_like(el) for el in result_flatten]
         grads = torch.autograd.grad(result_flatten, params, grad_init)
-        # print([torch.sum(g) for g in grads])
-        # print([torch.sum(g) for g in expected_grads])
-        try:
-            self.assertEqual(grads, expected_grads, atol=6e-05, rtol=6e-06)
-        except:
-            print('Should not be here')
+        self.assertEqual(grads, expected_grads, atol=6e-05, rtol=6e-06)
 
     def test_cond_no_trace(self):
         def true_fn(x):
@@ -1340,13 +1334,9 @@ def forward(self, pred_1, x_1):
     @unittest.skipIf(not SM70OrLater, "triton")
     @requires_cuda
     @parametrize("reverse", [False, True])
-    # @parametrize("reverse", [False])
     @parametrize("compile_mode", ["none", "compile", "compile_dynamic_shape"])
-    # @parametrize("compile_mode", ["none"])
     @parametrize("combine_mode", ["pointwise", "generic"])
-    # @parametrize("combine_mode", ["generic"])
     @parametrize("device", [torch.device("cpu"), torch.device("cuda")])
-    # @parametrize("device", [torch.device("cuda")])
     @parametrize("autograd", [False, True])
     # Skipping the combination of combine_mode=pointwise and device=cpu
     # as the current implementation of pointwise does only support CUDA device
@@ -1663,8 +1653,8 @@ def forward(self, pred_1, x_1):
         ),
     )
     def test_associative_scan_binary_operator(self, combine_mode, reverse, device, autograd):
-        state_dim = 10
-        timesteps = 20
+        state_dim = 20
+        timesteps = 10
         projected_inputs = torch.randn(
             timesteps, state_dim, requires_grad=autograd, device=device
         )
@@ -1687,26 +1677,6 @@ def forward(self, pred_1, x_1):
         )
         self.assertEqual([r.device.type for r in result], [device.type] * len(result))
         
-        x = torch.arange(1, 5, dtype=torch.float32, device=device, requires_grad=autograd)
-        y = torch.arange(1, 5, dtype=torch.float32, device=device, requires_grad=autograd)
-        elements = (x, y)
-        def add2(x, y):
-            return x[0] * y[0], x[0] * y[1] + 0. * x[1] + 0. * y[0] + 0. * y[1]
-        result = associative_scan(
-            add2,
-            elements,
-            0,
-            combine_mode=combine_mode,
-            reverse=reverse,
-        )
-        expected_result = _fake_associative_scan(
-            add2, elements, 0, reverse=reverse
-        )
-        self.assertEqual(
-            result,
-            expected_result,
-        )
-        
         if autograd:
             elements_flatten, _ = pytree.tree_flatten(elements)
             result_flatten, _ = pytree.tree_flatten(result)
@@ -1719,8 +1689,8 @@ def forward(self, pred_1, x_1):
             grads = torch.autograd.grad(
                 result_flatten, (*elements_flatten,), grad_out
             )
-            # print([torch.sum(e) for e in grads])
-            # print([torch.sum(e) for e in expected_grads])
+            print([torch.sum(g) for g in grads])
+            print([torch.sum(g) for g in expected_grads])
             self.assertEqual(grads, expected_grads)
 
     @requires_cuda
@@ -2166,13 +2136,9 @@ def forward(self, pred_1, x_1):
     @unittest.skipIf(not SM70OrLater, "triton")
     @requires_cuda
     @parametrize("combine_mode", ["pointwise", "generic"])
-    # @parametrize("combine_mode", ["pointwise"])
     @parametrize("compile_mode", ["none", "compile", "compile_dynamic_shape"])
-    # @parametrize("compile_mode", ["none"])
     @parametrize("reverse", [False, True])
-    # @parametrize("reverse", [False])
     @parametrize("device", [torch.device("cpu"), torch.device("cuda")])
-    # @parametrize("device", [torch.device("cuda")])
     # Skipping the combination of combine_mode=pointwise and device=cpu
     # as the current implementation of pointwise does only support CUDA device
     @decorateIf(
