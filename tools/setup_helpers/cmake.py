@@ -315,7 +315,7 @@ class CMake:
                 build_options.update(dict(
                     Python_NumPy_INCLUDE_DIR=Python_NumPy_INCLUDE_DIR
                 ))
-            except:
+            except ImportError:
                 # use_numpy is just a hint.... so we can fail silently here
                 pass
 
