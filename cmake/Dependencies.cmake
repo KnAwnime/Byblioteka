@@ -1043,6 +1043,9 @@ if(USE_ROCM)
   if(PYTORCH_FOUND_HIP)
     message(INFO "Compiling with HIP for AMD.")
     caffe2_update_option(USE_ROCM ON)
+    # In Rocm builds, CMake may not be able to determine the linking language for cu source files.
+    set(CMAKE_CXX_LINKER_PREFERENCE TRUE)
+    set(CMAKE_CXX_LINKER_PREFERENCE_PROPAGATES TRUE)
 
     if(USE_NCCL AND NOT USE_SYSTEM_NCCL)
       message(INFO "Forcing USE_SYSTEM_NCCL to ON since it's required by using RCCL")
