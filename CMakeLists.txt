@@ -1003,6 +1003,7 @@ if(NOT MSVC)
   append_cxx_flag_if_supported("-Wno-missing-field-initializers"
                                CMAKE_CXX_FLAGS)
   append_cxx_flag_if_supported("-Wno-type-limits" CMAKE_CXX_FLAGS)
+  append_cxx_flag_if_supported("-Wno-pass-failed=transform-warning" CMAKE_CXX_FLAGS)
   append_cxx_flag_if_supported("-Wno-array-bounds" CMAKE_CXX_FLAGS)
   append_cxx_flag_if_supported("-Wno-unknown-pragmas" CMAKE_CXX_FLAGS)
   append_cxx_flag_if_supported("-Wno-unused-parameter" CMAKE_CXX_FLAGS)
