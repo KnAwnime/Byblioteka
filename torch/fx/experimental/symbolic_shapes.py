@@ -193,6 +193,19 @@ _T = TypeVar("_T")
 _SympyT = TypeVar("_SympyT", sympy.Expr, SympyBoolean, sympy.Basic)
 
 
+REAL_TENSOR_LOGGING = None
+class RealTensorLoggingMode:
+    def __enter__(self):
+        global REAL_TENSOR_LOGGING
+        assert REAL_TENSOR_LOGGING is None
+        REAL_TENSOR_LOGGING = []
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        global REAL_TENSOR_LOGGING
+        REAL_TENSOR_LOGGING = None
+
+
 # Wrapper on lru_cache that reports statistics at process end
 def lru_cache(
     maxsize: Optional[int],
@@ -5442,6 +5455,7 @@ class ShapeEnv:
                             ),
                         },
                     )
+                    breakpoint()
                     self.defer_runtime_assert(
                         sympy.Eq(result_expr, unsound_expr),
                         f"propagate_real_tensors: {result_expr} == {unsound_expr}",
@@ -6164,6 +6178,14 @@ class ShapeEnv:
                                 ),
                             },
                         )
+                        REAL_TENSOR_LOGGING.append(
+                            {
+                                "expr": repr(orig_expr),
+                                "result": repr(unsound_result),
+                                "stack": format_frame(self._get_stack_summary(True)[0]),
+                            }
+                        )
+
                         transmute_into_runtime_assert = True
                         concrete_val = unsound_result
                     else:
