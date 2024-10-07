@@ -183,11 +183,11 @@ class CachingAutotuner(KernelInterface):
     def __init__(
         self,
         fn,
-        triton_meta,  # passed directly to triton
-        configs,
+        triton_meta: Dict[str, Any],  # passed directly to triton
+        configs: List[Config],
         save_cache_hook,
         mutated_arg_names: List[str],  # see [Note: clone mutated buffers]
-        heuristic_type,
+        heuristic_type: HeuristicType,
         size_hints=None,
         inductor_meta=None,  # metadata not relevant to triton
         custom_kernel=False,  # whether the kernel is inductor-generated or custom
@@ -210,7 +210,7 @@ class CachingAutotuner(KernelInterface):
         self.inductor_meta = {} if inductor_meta is None else inductor_meta
         self.save_cache_hook = save_cache_hook
         self.mutated_arg_names = mutated_arg_names
-        self.configs = configs
+        self.configs: Optional[List[Config]] = configs
         self.heuristic_type = heuristic_type
         self.custom_kernel = custom_kernel
         self.cuda_kernel_saved = False
@@ -244,6 +244,8 @@ class CachingAutotuner(KernelInterface):
 
         self.precompile_time_taken_ns = 0
         self.autotune_time_taken_ns = 0
+        # Puts Triton execution into interpret mode.
+        self.triton_interpret = os.environ.get("TRITON_INTERPRET", "0") == "1"
 
     def precompile(self, warm_cache_only=False):
         with self.lock:
@@ -253,10 +255,10 @@ class CachingAutotuner(KernelInterface):
             compiled_binaries = []
             if not self.configs:
                 raise RuntimeError("No triton configs are available")
-            for c in self.configs:
+            for config in self.configs:
                 try:
                     compiled_binary, launcher = self._precompile_config(
-                        c, warm_cache_only
+                        config, warm_cache_only
                     )
                 except OutOfResources as e:
                     if len(self.configs) == 1:
@@ -470,7 +472,7 @@ class CachingAutotuner(KernelInterface):
                 log.exception(
                     "Triton compilation failed: %s\n%s\nmetadata: %s",
                     self.inductor_meta.get("kernel_name", "triton_"),
-                    self.fn.src,
+                    getattr(self.fn, "src", "No source code available for triton"),
                     compile_meta,
                 )
                 raise
