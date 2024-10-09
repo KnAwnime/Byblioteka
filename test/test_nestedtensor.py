@@ -4231,6 +4231,39 @@ class TestNestedTensorSubclass(NestedTensorTestCase):
 
         self.assertEqual(res_dense, res_nt.values())
 
+    @onlyCUDA
+    @dtypes(torch.float32)
+    def test_record_stream(self, device, dtype):
+        values = torch.randn(500, 512, device=device, dtype=dtype)
+        step = 3
+        offsets = torch.arange(0, values.shape[0] + step, step, device=device)
+        lengths = offsets.diff()
+        nt_data_ptrs = {values.data_ptr(), offsets.data_ptr(), lengths.data_ptr()}
+
+        nt = torch.nested.nested_tensor_from_jagged(values, offsets, lengths)
+        s = torch.cuda.Stream()
+
+        with torch.cuda.stream(s):
+            # do something long
+            torch.cuda._sleep(1_000_000_000)
+            # ensure nt's memory survives
+            nt.record_stream(s)
+
+        # allocate new NJT of same size, check that data_ptrs don't match any of previous NJT's.
+        # this indicates no memory reuse happens
+        nt2 = torch.nested.nested_tensor_from_jagged(
+            torch.randn_like(values),
+            torch.zeros_like(offsets),
+            torch.empty_like(lengths),
+        )
+        nt2_data_ptrs = {
+            nt2._values.data_ptr(),
+            nt2._offsets.data_ptr(),
+            nt2._lengths.data_ptr(),
+        }
+        for data_ptr in nt2_data_ptrs:
+            self.assertNotIn(data_ptr, nt_data_ptrs)
+
     @dtypes(torch.float32)
     @parametrize(
         "func",
