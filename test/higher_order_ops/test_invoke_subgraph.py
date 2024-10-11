@@ -173,7 +173,7 @@ class TestInvokeSubgraphCompile(TestCase):
 
         x_clone = x.clone().detach().requires_grad_(True)
         y_clone = y.clone().detach().requires_grad_(True)
-        res = torch.compile(fn, backend="aot_eager")(x_clone, y_clone)
+        res = torch.compile(fn, backend="inductor")(x_clone, y_clone)
 
         # Run backward
         ref.sum().backward()
@@ -237,7 +237,7 @@ class TestInvokeSubgraphCompile(TestCase):
 
         x_clone = x.clone().detach().requires_grad_(True)
         y_clone = y.clone().detach().requires_grad_(True)
-        res = torch.compile(fn, backend="aot_eager")(x_clone, y_clone)
+        res = torch.compile(fn, backend="inductor")(x_clone, y_clone)
 
         # Run backward
         ref.sum().backward()
