@@ -76,8 +76,10 @@ class TORCH_API Context {
     } else if (device_type == at::kHIP) {
       return at::detail::getHIPHooks();
     } else {
-      AT_ERROR(
-          c10::DeviceTypeName(device_type), " device type not an accelerator.");
+      TORCH_CHECK(
+          false,
+          c10::DeviceTypeName(device_type),
+          " device type not an accelerator.");
     }
   }
   Device getDeviceFromPtr(void* data, c10::DeviceType device_type) {
@@ -93,7 +95,8 @@ class TORCH_API Context {
     } else if (device_type == at::kPrivateUse1) {
       return at::detail::getPrivateUse1Hooks().getDeviceFromPtr(data);
     } else {
-      AT_ERROR(c10::DeviceTypeName(device_type), " device type not enabled.");
+      TORCH_CHECK(
+          false, c10::DeviceTypeName(device_type), " device type not enabled.");
     }
   }
   bool isPinnedPtr(
