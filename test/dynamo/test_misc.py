@@ -9934,6 +9934,8 @@ def ___make_guard_fn():
 
     def test_pytree_tree_flatten_unflatten(self):
         implemtations = [("python", python_pytree)]
+        if cxx_pytree is not None:
+            implemtations.append(("cxx", cxx_pytree))
 
         for name, module in implemtations:
             with self.subTest(f"pytree implement: {name}"):
