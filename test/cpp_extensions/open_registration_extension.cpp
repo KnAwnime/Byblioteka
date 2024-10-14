@@ -389,7 +389,7 @@ at::Tensor custom_empty_strided(c10::IntArrayRef size,
                                 std::optional<bool> pin_memory_opt) {
   constexpr c10::DispatchKeySet private_use_ks(c10::DispatchKey::PrivateUse1);
   auto dtype = c10::dtype_or_default(dtype_opt);
-  return  at::detail::empty_strided_generic(size, stride, &global_custom_alloc, private_use_ks, dtype);
+  return at::detail::empty_strided_generic(size, stride, &global_custom_alloc, private_use_ks, dtype);
 }
 
 // Some set operations for the basic use case
@@ -631,20 +631,6 @@ const at::Generator& default_generator(c10::DeviceIndex device_index) {
   return at::globalContext().defaultGenerator(at::Device(c10::DeviceType::PrivateUse1, device_index));;
 }
 
-void fallback_with_undefined_tensor() {
-  at::Tensor first = at::empty((2,3)).to(at::DeviceType::PrivateUse1);
-  at::Tensor second = at::Tensor();
-  at::Tensor step = at::empty({}).fill_(2).to(at::DeviceType::PrivateUse1);
-  at::Tensor grad_scale = at::empty({}).fill_(0.00001).to(at::DeviceType::PrivateUse1);
-  at::Tensor found_inf = at::empty({}).fill_(1).to(at::DeviceType::PrivateUse1);
-  at::TensorList tensors = {first, first};
-  at::TensorList undefined_tensors = {first, second};
-  at::TensorList steps = {step, step};
-  return at::_fused_adamw_(tensors, tensors, tensors, tensors, undefined_tensors,
-                           steps, 0.001, 0.9, 0.999, 1e-2, 1e-8, false, false,
-                           grad_scale, found_inf);
-}
-
 struct CustomAutogradFnReturnsSelf : public torch::autograd::Function<CustomAutogradFnReturnsSelf> {
 
   static at::Tensor forward(torch::autograd::AutogradContext* ctx, at::Tensor self) {
@@ -693,7 +679,6 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("register_hook", &register_hook, "register_hook for privateuse1");
     m.def("is_register_hook", &is_register_hook, "is_register_hook for privateuse1");
     m.def("default_generator", &default_generator, "default_generator for privateuse1");
-    m.def("fallback_with_undefined_tensor", &fallback_with_undefined_tensor, "fallback_with_undefined_tensor for privateuse1");
 
     // Co-opting this file to more easily test torch.compile'ing of custom autograd functions in C++
     m.def("custom_autograd_fn_returns_self", &custom_autograd_fn_returns_self);
