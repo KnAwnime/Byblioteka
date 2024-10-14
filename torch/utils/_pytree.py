@@ -717,6 +717,12 @@ class TreeSpec:
     def is_leaf(self) -> bool:
         return self.num_nodes == 1 and self.num_leaves == 1
 
+    def children(self) -> List["TreeSpec"]:
+        return self.children_specs.copy()
+
+    def child(self, index: int) -> "TreeSpec":
+        return self.children_specs[index]
+
     def _flatten_up_to_helper(self, tree: PyTree, subtrees: List[PyTree]) -> None:
         if self.is_leaf():
             subtrees.append(tree)
@@ -879,11 +885,6 @@ def tree_unflatten(leaves: Iterable[Any], treespec: TreeSpec) -> PyTree:
     """Given a list of values and a TreeSpec, builds a pytree.
     This is the inverse operation of `tree_flatten`.
     """
-    if not isinstance(treespec, TreeSpec):
-        raise TypeError(
-            f"tree_unflatten(leaves, treespec): Expected `treespec` to be "
-            f"instance of TreeSpec but got item of type {type(treespec)}.",
-        )
     return treespec.unflatten(leaves)
 
 

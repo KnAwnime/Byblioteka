@@ -30,7 +30,10 @@ from typing import (
 from typing_extensions import deprecated, Self
 
 import optree
-from optree import PyTreeSpec as TreeSpec  # direct import for type annotations
+from optree import (  # noqa: F401  # direct import for type annotations
+    PyTreeSpec as PyTreeSpec,
+    PyTreeSpec as TreeSpec,
+)
 
 import torch.utils._pytree as python_pytree
 from torch.utils._pytree import KeyEntry as KeyEntry
@@ -306,11 +309,6 @@ def tree_unflatten(leaves: Iterable[Any], treespec: TreeSpec) -> PyTree:
         The reconstructed pytree, containing the ``leaves`` placed in the structure described by
         ``treespec``.
     """
-    if not isinstance(treespec, TreeSpec):
-        raise TypeError(
-            f"tree_unflatten(values, spec): Expected `spec` to be instance of "
-            f"TreeSpec but got item of type {type(treespec)}."
-        )
     return optree.tree_unflatten(treespec, leaves)  # type: ignore[arg-type]
 
 
