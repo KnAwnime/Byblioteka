@@ -110,19 +110,19 @@ aten = torch.ops.aten
 from typing_extensions import dataclass_transform
 
 
-@dataclass_transform()
-def ir_dataclass(_cls):
+@dataclass_transform(frozen_default=True)
+def ir_dataclass(cls=None, /, *, frozen: bool = True):
     def wrap(cls: _T) -> _T:
         if sys.version_info >= (3, 10):
-            return dataclasses.dataclass(cls, kw_only=True)  # type: ignore[call-overload]
+            return dataclasses.dataclass(cls, kw_only=True, frozen=frozen)  # type: ignore[call-overload]
         else:
             # Polyfill for python=3.9. kw_only simply introduces an extra check
             # that only kwargs are used (and is not available on 3.9)
             return dataclasses.dataclass(cls)
 
-    if _cls is None:
+    if cls is None:
         return wrap
-    return wrap(_cls)
+    return wrap(cls)
 
 
 """ [Note: Inductor IR]
@@ -439,7 +439,7 @@ class IRNode:
     get_unbacked_symbol_uses: Callable[[], OrderedSet[sympy.Symbol]]
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class Operation:
     def __post_init__(self):
         self.operation_name: Optional[str] = None
@@ -639,6 +639,7 @@ def nop_loader_fn(idx: Union[Expr, Sequence[Expr]], *, dtype: torch.dtype) -> Op
         return ops.constant(0, dtype)
 
 
+@ir_dataclass
 class Pointwise(Loops):
     def make_loader(self):
         # Make zero-element loops into a no-op
@@ -2395,6 +2396,7 @@ class PermuteView(BaseView):
         return reindex
 
 
+@ir_dataclass
 class SqueezeView(BaseView):
     @classmethod
     def create(cls, x, *, dim=None):
@@ -2640,7 +2642,7 @@ class ReinterpretView(BaseView):
     def __post_init__(self):
         super().__post_init__()
         if isinstance(self.data, BaseView):
-            self.data = self.data.unwrap_view()
+            object.__setattr__(self, "data", self.data.unwrap_view())
 
     def __str__(self) -> str:
         return self.str_helper(
@@ -2831,6 +2833,7 @@ class SliceView(View):
         return SliceView(data=x, size=new_size, reindex=reindex)
 
 
+@ir_dataclass
 class BaseConstant(IRNode):
     dtype: torch.dtype
     device: torch.device
@@ -3304,6 +3307,7 @@ class NonOwningLayout(Layout):
         return V.graph.sizevars.statically_known_multiple_of(offset, ALIGNMENT)  # type: ignore[arg-type]
 
 
+@ir_dataclass
 class NoneLayout(IRNode):
     # This is janky, I figured out what fields to populate by just running
     # the model I was interested in and adding properties/methods as needed.
@@ -3405,7 +3409,7 @@ class MutationLayoutSHOULDREMOVE(Layout):
         return self.target.make_indexer()
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class Buffer(IRNode):
     # Name is sometimes None; e.g., ForceInPlace, where there isn't
     # a meaningful name
@@ -3526,7 +3530,7 @@ class Buffer(IRNode):
         return False
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class OperationBuffer(Buffer, Operation):
     # An operation that produces a single output buffer
     def get_outputs(self) -> List[Buffer]:
@@ -3564,6 +3568,7 @@ class ConstantBuffer(InputBuffer):
         )
 
 
+@ir_dataclass
 class NoneAsConstantBuffer(IRNode):
     def get_unbacked_symbol_uses(self) -> OrderedSet[sympy.Symbol]:
         return OrderedSet()
@@ -3572,6 +3577,7 @@ class NoneAsConstantBuffer(IRNode):
         return V.graph.wrapper_code.none_str
 
 
+@ir_dataclass
 class ShapeAsConstantBuffer(IRNode):
     def __init__(self, shape):
         super().__init__()
@@ -3588,7 +3594,7 @@ class ShapeAsConstantBuffer(IRNode):
         return V.graph.wrapper_code.expr_printer(V.graph.sizevars.simplify(self.shape))
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class ComputedBuffer(OperationBuffer):
     data: Loops
 
@@ -4140,7 +4146,7 @@ class CppTemplateBuffer(TemplateBuffer):
         self.choice = choice
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class InputsKernel(OperationBuffer):
     inputs: List[Buffer]
 
@@ -4348,7 +4354,7 @@ class ConcatKernel(NopKernel):
         return True
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class ExternKernel(InputsKernel):
     constant_args: Tuple[Any, ...] = ()
     kwargs: Dict[str, Any] = dataclasses.field(default_factory=dict)
@@ -5102,7 +5108,7 @@ class ExternKernel(InputsKernel):
     __repr__ = __str__
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class ExternKernelOut(ExternKernel):
     def codegen(self, wrapper):
         self.codegen_comment(wrapper)
@@ -5742,7 +5748,7 @@ class AssertScalar(ExternKernel):
             wrapper.writeline(f"{self.get_name()} = None")
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class ExternKernelNode:
     name: str
     node: export_schema.Node
@@ -6231,7 +6237,7 @@ class FallbackKernel(ExternKernelAlloc):
         return super().apply_constraint()
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class ComplexView(FallbackKernel):
     """View a complex number as two dtyped numbers or vice versa"""
 
@@ -6263,7 +6269,6 @@ class ComplexView(FallbackKernel):
 
 
 @ir_dataclass
-# @ir_dataclass
 class MultiOutputLayout(IRNode):
     device: torch.device
 
@@ -6317,6 +6322,8 @@ class MultiOutput(ExternKernel):
         ]
 
 
+# We just use a normal dataclass for MutableBox/TensorBox/StorageBox since
+# they're mainly lowering-time constructs that we expect to mutate and such.
 @dataclasses.dataclass
 class MutableBox(IRNode):
     """
@@ -6473,7 +6480,7 @@ class StorageBox(MutableBox):
         return self.data.num_reads()
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class Subgraph(IRNode):
     name: str
     graph_module: torch.fx.GraphModule
@@ -6489,7 +6496,7 @@ def _has_aliased_buffers(buffers: Sequence[IRNode]) -> bool:
     return len(OrderedSet(id(buffer) for buffer in buffers)) < len(buffers)
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class Conditional(ExternKernel):
     predicate: Optional[IRNode] = None
     operands: Optional[List[TensorBox]] = None
@@ -6610,7 +6617,7 @@ class Conditional(ExternKernel):
         wrapper.codegen_conditional(self)
 
 
-@ir_dataclass
+@ir_dataclass(frozen=False)
 class WhileLoop(ExternKernel):
     carried_inputs: Optional[List[TensorBox]] = None
     additional_inputs: Optional[List[TensorBox]] = None
