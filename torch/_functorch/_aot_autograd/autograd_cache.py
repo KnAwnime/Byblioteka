@@ -295,7 +295,9 @@ class FXGraphCacheLoadable:
     def is_backward(self):
         return False
 
-    def load(self, example_inputs, fx_config: Dict[str, BoxedBool]) -> CompiledFxGraph:
+    def load(
+        self, gm: torch.fx.GraphModule, example_inputs, fx_config: Dict[str, BoxedBool]
+    ) -> CompiledFxGraph:
         # [Note: AOTAutogradCache and FXGraphCache Guard interactions]
         # As mentioned, AOTAutograd takes in the symint inputs from dynamo's list of arguments.
         # FXGraphCache serializes guards that are needed in the shape_env based on these symint inputs to the graph.
@@ -312,6 +314,7 @@ class FXGraphCacheLoadable:
 
         result, cache_info = FxGraphCache.load_with_key(
             self.fx_graph_cache_key,
+            gm,
             [],
             example_inputs,
             local=True,
@@ -332,7 +335,7 @@ class FXGraphCacheLoadable:
             payload_fn=lambda: json.dumps(cache_info),
         )
 
-        FxGraphCache.post_compile(result, example_inputs, fx_config["cudagraphs"])
+        FxGraphCache.post_compile(result, gm, example_inputs, fx_config["cudagraphs"])
         result._boxed_call = True
         return result
 
@@ -397,6 +400,7 @@ class AOTAutogradCacheEntry:
     # Turn cache entry into the original callable
     def wrap_post_compile(
         self,
+        gm: torch.fx.GraphModule,
         args: List[torch.Tensor],
         aot_config: AOTConfig,
         fx_config: Dict[str, BoxedBool],
@@ -436,10 +440,10 @@ class AOTAutogradCacheEntry:
                     "aot_backward_graph", payload_fn=lambda: self.aot_backward_graph_str
                 )
 
-        compiled_fw_func = self.compiled_fw.load(args, fx_config)
+        compiled_fw_func = self.compiled_fw.load(gm, args, fx_config)
         compiled_bw_func = None
         if self.compiled_bw is not None:
-            compiled_bw_func = self.compiled_bw.load(args, fx_config)
+            compiled_bw_func = self.compiled_bw.load(gm, args, fx_config)
             needs_autograd = True
         else:
             needs_autograd = False
@@ -573,7 +577,8 @@ class AOTAutogradCache:
                 cache_key, local, remote
             )
             if entry is not None:
-                compiled_fn = entry.wrap_post_compile(args, aot_config, fx_config)
+                assert isinstance(mod, torch.fx.GraphModule)
+                compiled_fn = entry.wrap_post_compile(mod, args, aot_config, fx_config)
                 log.info("AOTAutograd cache hit for key %s", cache_key)
                 counters["aot_autograd"]["autograd_cache_hit"] += 1
                 cache_state = "hit"
