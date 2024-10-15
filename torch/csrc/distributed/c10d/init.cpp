@@ -2764,6 +2764,12 @@ options :class:`~torch.distributed.ProcessGroupNCCL.Options`).
               "perform_nocolor_split",
               &::c10d::ProcessGroupNCCL::performNocolorSplit)
           .def(
+              "register_user_buffers",
+              &::c10d::ProcessGroupNCCL::registerUserBuffers)
+          .def(
+              "deregister_user_buffers",
+              &::c10d::ProcessGroupNCCL::deregisterUserBuffers)
+          .def(
               "abort",
               &::c10d::ProcessGroupNCCL::abort,
               py::call_guard<py::gil_scoped_release>());
