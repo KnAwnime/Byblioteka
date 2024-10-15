@@ -1,5 +1,5 @@
 # mypy: allow-untyped-defs
-from typing import Callable, Tuple, Union
+from typing import Callable, Optional, Tuple, Union
 
 import torch
 import torch.utils._pytree as pytree
@@ -11,6 +11,7 @@ from torch._higher_order_ops.utils import (
     _set_compilation_env,
     autograd_not_implemented,
     reenter_make_fx,
+    unique_graph_id,
     UnsupportedAliasMutationException,
 )
 from torch._ops import HigherOrderOperator
@@ -43,7 +44,8 @@ class WhileLoopOp(HigherOrderOperator):
                 f"additional_inputs must be a tuple, got {type(additional_inputs)}"
             )
         if not all(
-            isinstance(t, (torch.Tensor, int, float, bool)) for t in carried_inputs
+            isinstance(t, (torch.Tensor, int, float, bool, torch.SymInt))
+            for t in carried_inputs
         ):
             raise RuntimeError(
                 "carried_inputs must be a tuple of tensors, ints, floats, or bools, got "
@@ -51,7 +53,8 @@ class WhileLoopOp(HigherOrderOperator):
             )
 
         if not all(
-            isinstance(t, (torch.Tensor, int, float, bool)) for t in additional_inputs
+            isinstance(t, (torch.Tensor, int, float, bool, torch.SymInt))
+            for t in additional_inputs
         ):
             raise RuntimeError(
                 "additional_inputs must be a tuple of tensors, ints, floats, or bools, got "
@@ -200,8 +203,12 @@ def while_loop_tracing(mode, cond_fn, body_fn, carried_inputs, additional_inputs
     def _trace_while_loop(
         proxy_mode, while_loop_op, cond_fn, body_fn, carried_inputs, additional_inputs
     ):
-        cond_graph = reenter_make_fx(cond_fn)(*carried_inputs, *additional_inputs)
-        body_graph = reenter_make_fx(body_fn)(*carried_inputs, *additional_inputs)
+        cond_graph = reenter_make_fx(cond_fn, symintify_int=True)(
+            *carried_inputs, *additional_inputs
+        )
+        body_graph = reenter_make_fx(body_fn, symintify_int=True)(
+            *carried_inputs, *additional_inputs
+        )
 
         next_name = None
         i = 0
@@ -236,6 +243,7 @@ def while_loop_tracing(mode, cond_fn, body_fn, carried_inputs, additional_inputs
     return _trace_while_loop(
         mode, while_loop_op, cond_fn, body_fn, carried_inputs, additional_inputs
     )
+
 
 
 @while_loop_op.py_impl(FakeTensorMode)
