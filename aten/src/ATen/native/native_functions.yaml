@@ -8010,6 +8010,7 @@
     CUDA: masked_scatter__cuda
     MPS: masked_scatter__mps
   autogen: masked_scatter.out
+  tags: core
 
 - func: masked_scatter(Tensor self, Tensor mask, Tensor source) -> Tensor
   variants: function, method
