@@ -182,14 +182,14 @@ inline constexpr type_index get_type_index<std::string>() {
 #endif
 
 template <typename T>
-inline C10_TYPENAME_CONSTEXPR string_view_ext
+inline C10_TYPENAME_CONSTEXPR std::string_view
 get_fully_qualified_type_name() noexcept {
 #if C10_TYPENAME_SUPPORTS_CONSTEXPR
   constexpr
 #else
   static
 #endif
-      auto name = detail::fully_qualified_type_name_impl<T>();
+      std::string_view name = detail::fully_qualified_type_name_impl<T>();
   return name;
 }
 } // namespace c10::util
