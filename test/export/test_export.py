@@ -918,6 +918,66 @@ graph():
         ep_model = export(model, (x,), strict=False).module()
         self.assertTrue(torch.allclose(model(x), ep_model(x)))
 
+    def test_fake_real_kernel_mismatch(self):
+        with torch.library._scoped_library("mylib", "FRAGMENT") as lib:
+            torch.library.define(
+                "mylib::foo",
+                "(Tensor a, Tensor b) -> (Tensor)",
+                tags=torch.Tag.pt2_compliant_tag,
+                lib=lib,
+            )
+
+            class M(torch.nn.Module):
+                def forward(self, a, b):
+                    return torch.ops.mylib.foo(a, b)
+
+            @torch.library.impl("mylib::foo", "cpu", lib=lib)
+            def foo_impl(a, b):
+                return a + b
+
+            @torch.library.register_fake("mylib::foo")
+            def foo_fake_impl(a, b):
+                m, n = a.shape
+                return torch.empty(n, m)  # incorrectly permute
+
+            error_type = (
+                AssertionError
+                if is_non_strict_test(self._testMethodName)
+                else torch._dynamo.exc.TorchRuntimeError
+            )
+            with torch._functorch.config.patch(fake_tensor_propagate_real_tensors=True):
+                # won't catch anything if dims are equal
+                export(
+                    M(),
+                    (torch.randn(4, 4), torch.randn(4, 4)),
+                )
+                # catch concrete inequality
+                with self.assertRaisesRegex(
+                    error_type,
+                    "Real tensor propagation found a size mismatch between fake shape 8 and real shape 4, "
+                    "at output index 0, dimension 0 for func: mylib.foo.default",
+                ):
+                    export(
+                        M(),
+                        (torch.randn(4, 8), torch.randn(4, 8)),
+                    )
+                # catch symbolic inequality due to range constraints
+                d0 = Dim("d0", max=7)
+                d1 = Dim("d1", min=8)
+                with self.assertRaisesRegex(
+                    error_type,
+                    "Real tensor propagation found a size mismatch between fake shape s1 and real shape 4, "
+                    "at output index 0, dimension 0 for func: mylib.foo.default",
+                ):
+                    export(
+                        M(),
+                        (torch.randn(4, 8), torch.randn(4, 8)),
+                        dynamic_shapes={
+                            "a": (d0, d1),
+                            "b": (d0, d1),
+                        },
+                    )
+
     @testing.expectedFailureTrainingIRToRunDecompNonStrict  # TODO(pianpwk): user_output signature
     def test_real_tensor_for_max_op(self):
         class Foo(torch.nn.Module):
