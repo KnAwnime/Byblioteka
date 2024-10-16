@@ -146,6 +146,8 @@ class AsyncCompile:
     @functools.lru_cache(1)
     def pool() -> ThreadPoolExecutor:
         assert get_compile_threads() > 1
+        # Stop user from changing because of the use of lru_cache.
+        config.freeze_key("compile_threads")  # type: ignore[attr-defined]
         return ThreadPoolExecutor(get_compile_threads())
 
     @staticmethod
@@ -157,6 +159,8 @@ class AsyncCompile:
     @functools.lru_cache(1)
     def process_pool() -> AnyPool:
         assert get_compile_threads() > 1
+        # Stop user from changing because of the use of lru_cache.
+        config.freeze_key("compile_threads")  # type: ignore[attr-defined]
         pool: AnyPool
         if get_worker_start_method() == "subprocess":
             # Wrapper around ProcessPoolExecutor forks in a new process we control
